@@ -1663,6 +1663,207 @@ class AKShareProvider(BaseStockDataProvider):
 
         return 'general'
 
+    # ==================== HotChain: 市场热点 & 产业链 ====================
+
+    async def get_market_hotspot(self, top_n: int = 20) -> Dict[str, Any]:
+        """
+        获取当日市场热点（HotChain v0.1）
+
+        聚合：行业板块榜、概念板块榜、个股人气榜、财经热搜。
+        每个数据源独立 try/except，单源失败不影响整体。
+
+        Args:
+            top_n: 每类榜单返回前 N 条
+
+        Returns:
+            {
+              "trade_date": "YYYY-MM-DD",
+              "industries":     [{"name","change_pct","turnover","leading_stock"}],
+              "concepts":       [{"name","change_pct","turnover","leading_stock"}],
+              "popular_stocks": [{"code","name","rank"}],
+              "search_terms":   ["热搜词", ...],
+              "errors":         ["失败源说明", ...],
+            }
+        """
+        import akshare as ak
+
+        result: Dict[str, Any] = {
+            "trade_date": datetime.now().strftime("%Y-%m-%d"),
+            "industries": [],
+            "concepts": [],
+            "popular_stocks": [],
+            "search_terms": [],
+            "errors": [],
+        }
+
+        # 1. 行业板块榜（按涨跌幅）
+        try:
+            df = await asyncio.to_thread(ak.stock_board_industry_name_em)
+            if df is not None and not df.empty:
+                if "涨跌幅" in df.columns:
+                    df = df.sort_values("涨跌幅", ascending=False)
+                for _, row in df.head(top_n).iterrows():
+                    result["industries"].append({
+                        "name": str(row.get("板块名称", "")),
+                        "change_pct": _safe_float(row.get("涨跌幅")),
+                        "turnover": _safe_float(row.get("总市值") or row.get("成交额")),
+                        "leading_stock": str(row.get("领涨股票", "") or ""),
+                    })
+        except Exception as e:
+            logger.warning(f"⚠️ [热点] 行业板块榜获取失败: {e}")
+            result["errors"].append(f"行业板块榜: {e}")
+
+        # 2. 概念板块榜（按涨跌幅）
+        try:
+            df = await asyncio.to_thread(ak.stock_board_concept_name_em)
+            if df is not None and not df.empty:
+                if "涨跌幅" in df.columns:
+                    df = df.sort_values("涨跌幅", ascending=False)
+                for _, row in df.head(top_n).iterrows():
+                    result["concepts"].append({
+                        "name": str(row.get("板块名称", "")),
+                        "change_pct": _safe_float(row.get("涨跌幅")),
+                        "turnover": _safe_float(row.get("总市值") or row.get("成交额")),
+                        "leading_stock": str(row.get("领涨股票", "") or ""),
+                    })
+        except Exception as e:
+            logger.warning(f"⚠️ [热点] 概念板块榜获取失败: {e}")
+            result["errors"].append(f"概念板块榜: {e}")
+
+        # 3. 个股人气榜（东方财富）
+        try:
+            df = await asyncio.to_thread(ak.stock_hot_rank_em)
+            if df is not None and not df.empty:
+                for _, row in df.head(top_n).iterrows():
+                    result["popular_stocks"].append({
+                        "code": str(row.get("代码", "") or row.get("股票代码", "")),
+                        "name": str(row.get("股票名称", "") or row.get("名称", "")),
+                        "rank": _safe_int(row.get("当前排名") or row.get("排名")),
+                    })
+        except Exception as e:
+            logger.warning(f"⚠️ [热点] 个股人气榜获取失败: {e}")
+            result["errors"].append(f"个股人气榜: {e}")
+
+        # 4. 财经热搜（百度，容错性最弱，放最后）
+        try:
+            df = await asyncio.to_thread(ak.news_economic_baidu)
+            if df is not None and not df.empty:
+                col = "标题" if "标题" in df.columns else df.columns[0]
+                terms = [str(v) for v in df[col].head(top_n).tolist() if str(v).strip()]
+                result["search_terms"] = terms
+        except Exception as e:
+            logger.debug(f"⚠️ [热点] 财经热搜获取失败（非关键）: {e}")
+            result["errors"].append(f"财经热搜: {e}")
+
+        logger.info(
+            f"✅ [热点] 行业{len(result['industries'])} 概念{len(result['concepts'])} "
+            f"人气{len(result['popular_stocks'])} 热搜{len(result['search_terms'])}"
+        )
+        return result
+
+    async def get_industry_chain(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取公司产业链（HotChain v0.1）
+
+        组合：所属行业（个股信息） + 同行业可比公司（板块成分股） + 上下游关键词（静态字典）。
+
+        Args:
+            symbol: 股票代码（6 位 A 股代码）
+
+        Returns:
+            {
+              "code": "600519",
+              "name": "贵州茅台",
+              "industry": "酿酒行业",
+              "matched_industry": "白酒",
+              "upstream":   ["包装材料", ...],
+              "downstream": ["商超零售", ...],
+              "peers":      [{"code","name","change_pct","pe"}],
+              "errors":     [...],
+            }
+        """
+        import akshare as ak
+        from tradingagents.industry_chain_map import lookup_industry_chain
+
+        clean_code = str(symbol).replace(".SH", "").replace(".SZ", "").replace(".SS", "").zfill(6)
+
+        result: Dict[str, Any] = {
+            "code": clean_code,
+            "name": f"股票{clean_code}",
+            "industry": "未知",
+            "matched_industry": "",
+            "upstream": [],
+            "downstream": [],
+            "peers": [],
+            "errors": [],
+        }
+
+        # 1. 基础信息（公司名 + 所属行业）
+        industry = ""
+        try:
+            info = await self.get_stock_basic_info(clean_code)
+            if info:
+                result["name"] = info.get("name", result["name"])
+                industry = info.get("industry", "") or ""
+                result["industry"] = industry or "未知"
+        except Exception as e:
+            logger.warning(f"⚠️ [产业链] 基础信息获取失败: {e}")
+            result["errors"].append(f"基础信息: {e}")
+
+        # 2. 上下游关键词（静态字典三级匹配）
+        chain = lookup_industry_chain(industry)
+        result["upstream"] = chain["upstream"]
+        result["downstream"] = chain["downstream"]
+        result["matched_industry"] = chain["matched"]
+
+        # 3. 同行业可比公司（板块成分股）
+        if industry and industry != "未知":
+            try:
+                df = await asyncio.to_thread(ak.stock_board_industry_cons_em, symbol=industry)
+                if df is not None and not df.empty:
+                    if "涨跌幅" in df.columns:
+                        df = df.sort_values("涨跌幅", ascending=False)
+                    for _, row in df.head(20).iterrows():
+                        peer_code = str(row.get("代码", "") or "")
+                        if peer_code == clean_code:
+                            continue  # 排除自己
+                        result["peers"].append({
+                            "code": peer_code,
+                            "name": str(row.get("名称", "") or ""),
+                            "change_pct": _safe_float(row.get("涨跌幅")),
+                            "pe": _safe_float(row.get("市盈率-动态") or row.get("市盈率")),
+                        })
+            except Exception as e:
+                logger.warning(f"⚠️ [产业链] 同行业成分股获取失败: {e}")
+                result["errors"].append(f"同行业成分股: {e}")
+
+        logger.info(
+            f"✅ [产业链] {result['name']}({clean_code}) 行业={result['industry']} "
+            f"匹配={result['matched_industry']} 上游{len(result['upstream'])} "
+            f"下游{len(result['downstream'])} 同行{len(result['peers'])}"
+        )
+        return result
+
+
+def _safe_float(value) -> Optional[float]:
+    """安全转 float，失败返回 None。"""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace("%", "").replace(",", "").strip()
+            if value in ("", "-", "--", "None"):
+                return None
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(value) -> Optional[int]:
+    """安全转 int，失败返回 None。"""
+    f = _safe_float(value)
+    return int(f) if f is not None else None
+
 
 # 全局提供器实例
 _akshare_provider = None

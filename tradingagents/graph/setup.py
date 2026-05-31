@@ -9,6 +9,8 @@ from tradingagents.agents import (
     create_bear_researcher,
     create_bull_researcher,
     create_fundamentals_analyst,
+    create_hotspot_analyst,
+    create_industry_chain_analyst,
     create_market_analyst,
     create_msg_delete,
     create_news_analyst,
@@ -77,6 +79,18 @@ class GraphSetup:
         if len(selected_analysts) == 0:
             raise ValueError("Trading Agents Graph Setup Error: no analysts selected!")
 
+        # HotChain: 规范化分析师顺序，保证依赖关系正确
+        # （hotspot 必须在 industry_chain 之前，因为产业链分析师会读取热点报告）
+        _CANONICAL_ORDER = [
+            "market", "social", "news", "hotspot", "industry_chain", "fundamentals",
+        ]
+        _known = set(_CANONICAL_ORDER)
+        ordered = [a for a in _CANONICAL_ORDER if a in selected_analysts]
+        # 保留任何未在规范顺序中登记的自定义分析师（追加到末尾，保持原相对顺序）
+        ordered += [a for a in selected_analysts if a not in _known]
+        selected_analysts = ordered
+        logger.info(f"📋 [GraphSetup] 规范化后的分析师顺序: {selected_analysts}")
+
         # Create analyst nodes
         analyst_nodes = {}
         delete_nodes = {}
@@ -122,6 +136,22 @@ class GraphSetup:
             )
             delete_nodes["news"] = create_msg_delete()
             tool_nodes["news"] = self.tool_nodes["news"]
+
+        # HotChain: 热点分析师
+        if "hotspot" in selected_analysts:
+            analyst_nodes["hotspot"] = create_hotspot_analyst(
+                self.quick_thinking_llm, self.toolkit
+            )
+            delete_nodes["hotspot"] = create_msg_delete()
+            tool_nodes["hotspot"] = self.tool_nodes["hotspot"]
+
+        # HotChain: 产业链分析师
+        if "industry_chain" in selected_analysts:
+            analyst_nodes["industry_chain"] = create_industry_chain_analyst(
+                self.quick_thinking_llm, self.toolkit
+            )
+            delete_nodes["industry_chain"] = create_msg_delete()
+            tool_nodes["industry_chain"] = self.tool_nodes["industry_chain"]
 
         if "fundamentals" in selected_analysts:
             # 现在所有LLM都使用标准基本面分析师（包括阿里百炼的OpenAI兼容适配器）

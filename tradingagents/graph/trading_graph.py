@@ -644,6 +644,19 @@ class TradingAgentsGraph:
                     self.toolkit.get_china_fundamentals,
                 ]
             ),
+            # HotChain: 热点 & 产业链工具节点
+            "hotspot": ToolNode(
+                [
+                    self.toolkit.get_market_hotspot_unified,
+                    self.toolkit.get_stock_news_unified,
+                ]
+            ),
+            "industry_chain": ToolNode(
+                [
+                    self.toolkit.get_industry_chain_unified,
+                    self.toolkit.get_stock_news_unified,
+                ]
+            ),
         }
 
     def propagate(self, company_name, trade_date, progress_callback=None, task_id=None):

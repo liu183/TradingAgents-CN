@@ -10,6 +10,7 @@
 | 文档 | 说明 |
 |---|---|
 | [`analysis-report.md`](./analysis-report.md) | **参考项目对比分析报告** — 对 `daily_stock_analysis (DSA)` 的拆解、与 `TradingAgents-CN` 的差距对照 |
+| [`mvp-implementation.md`](./mvp-implementation.md) | **v0.1 MVP 实现说明** — 本次落地的代码改动、使用方法、live 运行前置条件 |
 | [`spec/requirements.md`](./spec/requirements.md) | **需求规格** — 用户故事、功能需求 / 非功能需求、范围与验收标准 |
 | [`spec/design.md`](./spec/design.md) | **设计文档** — 架构、目录、数据结构、关键模块接口、SSE 协议、缓存、演进路线 |
 | [`spec/tasks.md`](./spec/tasks.md) | **任务拆分** — 10 阶段任务清单、估时、依赖图、风险 |
@@ -53,4 +54,4 @@ curl -X POST http://localhost:8000/api/v1/hotchain/analyze \
 
 ## 状态
 
-📐 **Spec 已锁定**，等待实现。详见 [`spec/tasks.md`](./spec/tasks.md) 的任务清单。
+📐 **Spec 已锁定**。**v0.1 MVP 已实现**（数据 Provider + 2 个 Agent + 接入主图 + CLI），详见 [`mvp-implementation.md`](./mvp-implementation.md)。后续阶段（Skill / API / Web / SKILL.md / MCP）见 [`spec/tasks.md`](./spec/tasks.md)。

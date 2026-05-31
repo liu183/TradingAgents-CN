@@ -136,7 +136,67 @@ class ConditionalLogic:
         logger.info(f"🔀 [条件判断] ✅ 无tool_calls，返回: Msg Clear News")
         return "Msg Clear News"
 
-    def should_continue_fundamentals(self, state: AgentState):
+    def should_continue_hotspot(self, state: AgentState):
+        """判断热点分析是否应该继续。"""
+        from tradingagents.utils.logging_init import get_logger
+        logger = get_logger("agents")
+
+        messages = state["messages"]
+        last_message = messages[-1]
+
+        tool_call_count = state.get("hotspot_tool_call_count", 0)
+        max_tool_calls = 2
+
+        hotspot_report = state.get("hotspot_report", "")
+
+        logger.info(f"🔀 [条件判断] should_continue_hotspot")
+        logger.info(f"🔧 [死循环修复] - 工具调用次数: {tool_call_count}/{max_tool_calls}")
+
+        if tool_call_count >= max_tool_calls:
+            logger.warning(f"🔧 [死循环修复] 达到最大工具调用次数，强制结束: Msg Clear Hotspot")
+            return "Msg Clear Hotspot"
+
+        if hotspot_report and len(hotspot_report) > 100:
+            logger.info(f"🔀 [条件判断] ✅ 报告已完成，返回: Msg Clear Hotspot")
+            return "Msg Clear Hotspot"
+
+        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+            logger.info(f"🔀 [条件判断] 🔧 检测到tool_calls，返回: tools_hotspot")
+            return "tools_hotspot"
+
+        logger.info(f"🔀 [条件判断] ✅ 无tool_calls，返回: Msg Clear Hotspot")
+        return "Msg Clear Hotspot"
+
+    def should_continue_industry_chain(self, state: AgentState):
+        """判断产业链分析是否应该继续。"""
+        from tradingagents.utils.logging_init import get_logger
+        logger = get_logger("agents")
+
+        messages = state["messages"]
+        last_message = messages[-1]
+
+        tool_call_count = state.get("industry_chain_tool_call_count", 0)
+        max_tool_calls = 2
+
+        industry_chain_report = state.get("industry_chain_report", "")
+
+        logger.info(f"🔀 [条件判断] should_continue_industry_chain")
+        logger.info(f"🔧 [死循环修复] - 工具调用次数: {tool_call_count}/{max_tool_calls}")
+
+        if tool_call_count >= max_tool_calls:
+            logger.warning(f"🔧 [死循环修复] 达到最大工具调用次数，强制结束: Msg Clear Industry_chain")
+            return "Msg Clear Industry_chain"
+
+        if industry_chain_report and len(industry_chain_report) > 100:
+            logger.info(f"🔀 [条件判断] ✅ 报告已完成，返回: Msg Clear Industry_chain")
+            return "Msg Clear Industry_chain"
+
+        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+            logger.info(f"🔀 [条件判断] 🔧 检测到tool_calls，返回: tools_industry_chain")
+            return "tools_industry_chain"
+
+        logger.info(f"🔀 [条件判断] ✅ 无tool_calls，返回: Msg Clear Industry_chain")
+        return "Msg Clear Industry_chain"
         """判断基本面分析是否应该继续"""
         from tradingagents.utils.logging_init import get_logger
         logger = get_logger("agents")

@@ -18,6 +18,9 @@ def create_bear_researcher(llm, memory):
         sentiment_report = state["sentiment_report"]
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
+        # HotChain: 热点 & 产业链报告（可能为空）
+        hotspot_report = state.get("hotspot_report", "")
+        industry_chain_report = state.get("industry_chain_report", "")
 
         # 使用统一的股票类型检测
         ticker = state.get('company_of_interest', 'Unknown')
@@ -73,7 +76,7 @@ def create_bear_researcher(llm, memory):
         currency = market_info['currency_name']
         currency_symbol = market_info['currency_symbol']
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
+        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{hotspot_report}\n\n{industry_chain_report}\n\n{fundamentals_report}"
 
         # 安全检查：确保memory不为None
         if memory is not None:
@@ -106,6 +109,8 @@ def create_bear_researcher(llm, memory):
 市场研究报告：{market_research_report}
 社交媒体情绪报告：{sentiment_report}
 最新世界事务新闻：{news_report}
+市场热点报告：{hotspot_report}
+产业链分析报告：{industry_chain_report}
 公司基本面报告：{fundamentals_report}
 辩论对话历史：{history}
 最后的看涨论点：{current_response}

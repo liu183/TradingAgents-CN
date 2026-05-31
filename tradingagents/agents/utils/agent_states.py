@@ -64,11 +64,20 @@ class AgentState(MessagesState):
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
 
+    # HotChain: 热点 & 产业链报告
+    hotspot_report: Annotated[str, "Report from the Hotspot Analyst (当日市场热点)"]
+    industry_chain_report: Annotated[str, "Report from the Industry Chain Analyst (上下游产业链)"]
+
+    # HotChain: 用户选择的 skill ids
+    selected_skills: Annotated[list, "User-selected HotChain skill ids"]
+
     # 🔧 死循环修复: 工具调用计数器
     market_tool_call_count: Annotated[int, "Market analyst tool call counter"]
     news_tool_call_count: Annotated[int, "News analyst tool call counter"]
     sentiment_tool_call_count: Annotated[int, "Social media analyst tool call counter"]
     fundamentals_tool_call_count: Annotated[int, "Fundamentals analyst tool call counter"]
+    hotspot_tool_call_count: Annotated[int, "Hotspot analyst tool call counter"]
+    industry_chain_tool_call_count: Annotated[int, "Industry chain analyst tool call counter"]
 
     # researcher team discussion step
     investment_debate_state: Annotated[
