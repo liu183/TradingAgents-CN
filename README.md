@@ -196,6 +196,28 @@
 
 
 
+## 🔥 HotChain — 热点 + 产业链 + 投资建议（规划中）
+
+**HotChain** 是基于本仓库多 Agent 框架扩展的"热点 + 产业链 + 投资建议"AI Agent 系统，参考 [`ZhuLinsen/daily_stock_analysis`](https://github.com/ZhuLinsen/daily_stock_analysis) 的 Skill 与多形态架构，规划支持 **CLI / Web / API / Skill (SKILL.md) / MCP** 五种入口。
+
+核心能力：
+
+- 📈 **当日市场热点感知** — 行业榜 / 概念榜 / 人气榜 / 财经热搜
+- 🔗 **公司上下游产业链分析** — 含同行业可比对照
+- 💡 **综合投资建议** — 复用现有牛熊辩论 + 风险三辩输出明确"买/持/卖 + 目标价"
+- 🧩 **Skill 机制** — 自然语言 YAML 自定义策略，零代码扩展
+- 🌐 **网页可交互工作台** — 表单填写 / 流式展示 / YAML 编辑 / 历史浏览 / 分享链接
+
+📐 **Spec 已锁定**，详见：
+
+- [`docs/hotchain/README.md`](docs/hotchain/README.md) — 文档索引
+- [`docs/hotchain/analysis-report.md`](docs/hotchain/analysis-report.md) — 参考项目对比分析报告
+- [`docs/hotchain/spec/requirements.md`](docs/hotchain/spec/requirements.md) — 需求规格
+- [`docs/hotchain/spec/design.md`](docs/hotchain/spec/design.md) — 设计文档
+- [`docs/hotchain/spec/tasks.md`](docs/hotchain/spec/tasks.md) — 任务拆分（10 阶段，~14 天）
+
+
+
 ## 🤝 贡献指南
 
 我们欢迎各种形式的贡献：
