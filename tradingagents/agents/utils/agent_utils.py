@@ -1377,3 +1377,239 @@ class Toolkit:
             error_msg = f"统一情绪分析工具执行失败: {str(e)}"
             logger.error(f"❌ [统一情绪工具] {error_msg}")
             return error_msg
+
+
+    # ==================== HotChain: 热点 & 产业链统一工具 ====================
+
+    @staticmethod
+    @tool
+    @log_tool_call(tool_name="get_market_hotspot_unified", log_args=True)
+    def get_market_hotspot_unified(
+        curr_date: Annotated[str, "当前日期，格式：YYYY-MM-DD"],
+        top_n: Annotated[int, "每类榜单返回前 N 条"] = 15,
+    ) -> str:
+        """
+        统一的市场热点工具（HotChain）
+        获取当日市场热点：行业板块榜、概念板块榜、个股人气榜、财经热搜。
+        目前覆盖 A 股（数据来自东方财富/百度），用于判断热点轮动与个股关联度。
+
+        Args:
+            curr_date: 当前日期（格式：YYYY-MM-DD）
+            top_n: 每类榜单返回前 N 条
+
+        Returns:
+            str: 格式化的市场热点 Markdown 报告
+        """
+        logger.info(f"🔥 [统一热点工具] 获取当日市场热点，日期: {curr_date}")
+
+        try:
+            from tradingagents.dataflows.providers.china.akshare import get_akshare_provider
+            import asyncio
+
+            provider = get_akshare_provider()
+
+            # provider 方法是 async，需在同步上下文里跑事件循环
+            def _run():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(provider.get_market_hotspot(top_n=top_n))
+                finally:
+                    loop.close()
+
+            try:
+                asyncio.get_running_loop()
+                # 已在事件循环中（罕见），用线程隔离
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    data = ex.submit(_run).result(timeout=30)
+            except RuntimeError:
+                data = _run()
+
+            return _format_hotspot_markdown(data)
+
+        except Exception as e:
+            import traceback
+            logger.error(f"❌ [统一热点工具] 执行失败: {e}")
+            logger.error(traceback.format_exc())
+            return f"❌ 市场热点获取失败: {str(e)}"
+
+    @staticmethod
+    @tool
+    @log_tool_call(tool_name="get_industry_chain_unified", log_args=True)
+    def get_industry_chain_unified(
+        ticker: Annotated[str, "股票代码（A股，如 600519）"],
+        curr_date: Annotated[str, "当前日期，格式：YYYY-MM-DD"],
+    ) -> str:
+        """
+        统一的产业链工具（HotChain）
+        获取公司所属行业、上下游产业链关键词、同行业可比公司。
+        目前覆盖 A 股。
+
+        Args:
+            ticker: 股票代码（如：600519）
+            curr_date: 当前日期（格式：YYYY-MM-DD）
+
+        Returns:
+            str: 格式化的产业链 Markdown 报告
+        """
+        logger.info(f"🔗 [统一产业链工具] 分析股票: {ticker}")
+
+        try:
+            from tradingagents.utils.stock_utils import StockUtils
+
+            market_info = StockUtils.get_market_info(ticker)
+            if not market_info.get("is_china"):
+                return (
+                    f"# {ticker} 产业链分析\n\n"
+                    f"⚠️ 当前 HotChain 产业链分析仅支持 A 股，"
+                    f"{ticker} 为 {market_info.get('market_name', '非A股')}，暂不支持。\n"
+                )
+
+            from tradingagents.dataflows.providers.china.akshare import get_akshare_provider
+            import asyncio
+
+            provider = get_akshare_provider()
+
+            def _run():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(provider.get_industry_chain(ticker))
+                finally:
+                    loop.close()
+
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    data = ex.submit(_run).result(timeout=30)
+            except RuntimeError:
+                data = _run()
+
+            return _format_industry_chain_markdown(data, curr_date)
+
+        except Exception as e:
+            import traceback
+            logger.error(f"❌ [统一产业链工具] 执行失败: {e}")
+            logger.error(traceback.format_exc())
+            return f"❌ 产业链分析获取失败: {str(e)}"
+
+
+# ==================== HotChain Markdown 格式化辅助函数 ====================
+
+def _format_hotspot_markdown(data: dict) -> str:
+    """把 get_market_hotspot 的结构化数据格式化为 LLM 友好的 Markdown。"""
+    if not data:
+        return "❌ 未获取到市场热点数据"
+
+    lines = [f"# 当日市场热点（{data.get('trade_date', '')}）", ""]
+
+    industries = data.get("industries", [])
+    if industries:
+        lines.append("## 一、热门行业板块（按涨跌幅）")
+        lines.append("")
+        lines.append("| 排名 | 行业 | 涨跌幅 | 领涨股 |")
+        lines.append("|---|---|---|---|")
+        for i, item in enumerate(industries, 1):
+            pct = item.get("change_pct")
+            pct_str = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "-"
+            lines.append(f"| {i} | {item.get('name', '')} | {pct_str} | {item.get('leading_stock', '') or '-'} |")
+        lines.append("")
+
+    concepts = data.get("concepts", [])
+    if concepts:
+        lines.append("## 二、热门概念板块（按涨跌幅）")
+        lines.append("")
+        lines.append("| 排名 | 概念 | 涨跌幅 | 领涨股 |")
+        lines.append("|---|---|---|---|")
+        for i, item in enumerate(concepts, 1):
+            pct = item.get("change_pct")
+            pct_str = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "-"
+            lines.append(f"| {i} | {item.get('name', '')} | {pct_str} | {item.get('leading_stock', '') or '-'} |")
+        lines.append("")
+
+    popular = data.get("popular_stocks", [])
+    if popular:
+        lines.append("## 三、个股人气榜（东方财富）")
+        lines.append("")
+        names = [f"{p.get('name', '')}({p.get('code', '')})" for p in popular]
+        lines.append("、".join(names))
+        lines.append("")
+
+    terms = data.get("search_terms", [])
+    if terms:
+        lines.append("## 四、财经热搜")
+        lines.append("")
+        lines.append("、".join(terms))
+        lines.append("")
+
+    errors = data.get("errors", [])
+    if errors:
+        lines.append("---")
+        lines.append(f"> ⚠️ 部分数据源获取失败（不影响其余分析）：{'; '.join(errors)}")
+
+    if not industries and not concepts and not popular and not terms:
+        return "❌ 市场热点所有数据源均获取失败，请检查网络或 AKShare 可用性"
+
+    return "\n".join(lines)
+
+
+def _format_industry_chain_markdown(data: dict, curr_date: str = "") -> str:
+    """把 get_industry_chain 的结构化数据格式化为 LLM 友好的 Markdown。"""
+    if not data:
+        return "❌ 未获取到产业链数据"
+
+    name = data.get("name", "")
+    code = data.get("code", "")
+    industry = data.get("industry", "未知")
+    matched = data.get("matched_industry", "")
+    upstream = data.get("upstream", [])
+    downstream = data.get("downstream", [])
+    peers = data.get("peers", [])
+
+    lines = [f"# {name}（{code}）产业链分析", ""]
+    if curr_date:
+        lines.append(f"**分析日期**: {curr_date}")
+    lines.append(f"**所属行业**: {industry}")
+    if matched and matched != industry:
+        lines.append(f"**产业链匹配行业**: {matched}")
+    lines.append("")
+
+    lines.append("## 一、上游环节（原材料 / 供应商 / 技术）")
+    lines.append("")
+    if upstream:
+        lines.append("、".join(upstream))
+    else:
+        lines.append("> 暂无上游映射数据（该行业未收录于产业链知识库，请结合公司公告判断）")
+    lines.append("")
+
+    lines.append("## 二、下游环节（客户 / 应用领域）")
+    lines.append("")
+    if downstream:
+        lines.append("、".join(downstream))
+    else:
+        lines.append("> 暂无下游映射数据")
+    lines.append("")
+
+    lines.append("## 三、同行业可比公司（按当日涨跌幅）")
+    lines.append("")
+    if peers:
+        lines.append("| 代码 | 名称 | 涨跌幅 | 市盈率 |")
+        lines.append("|---|---|---|---|")
+        for p in peers:
+            pct = p.get("change_pct")
+            pct_str = f"{pct:+.2f}%" if isinstance(pct, (int, float)) else "-"
+            pe = p.get("pe")
+            pe_str = f"{pe:.1f}" if isinstance(pe, (int, float)) else "-"
+            lines.append(f"| {p.get('code', '')} | {p.get('name', '')} | {pct_str} | {pe_str} |")
+    else:
+        lines.append("> 暂无同行业可比公司数据")
+    lines.append("")
+
+    errors = data.get("errors", [])
+    if errors:
+        lines.append("---")
+        lines.append(f"> ⚠️ 部分数据源获取失败（不影响其余分析）：{'; '.join(errors)}")
+
+    return "\n".join(lines)

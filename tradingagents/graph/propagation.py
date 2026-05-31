@@ -49,6 +49,10 @@ class Propagator:
             "fundamentals_report": "",
             "sentiment_report": "",
             "news_report": "",
+            # HotChain: 热点 & 产业链初始字段
+            "hotspot_report": "",
+            "industry_chain_report": "",
+            "selected_skills": [],
         }
 
     def get_graph_args(self, use_progress_callback: bool = False) -> Dict[str, Any]:

@@ -19,7 +19,11 @@ def create_research_manager(llm, memory):
 
         investment_debate_state = state["investment_debate_state"]
 
-        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
+        # HotChain: 热点 & 产业链报告（可能为空）
+        hotspot_report = state.get("hotspot_report", "")
+        industry_chain_report = state.get("industry_chain_report", "")
+
+        curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{hotspot_report}\n\n{industry_chain_report}\n\n{fundamentals_report}"
 
         # 安全检查：确保memory不为None
         if memory is not None:
@@ -64,6 +68,10 @@ def create_research_manager(llm, memory):
 情绪分析：{sentiment_report}
 
 新闻分析：{news_report}
+
+市场热点：{hotspot_report}
+
+产业链分析：{industry_chain_report}
 
 基本面分析：{fundamentals_report}
 
